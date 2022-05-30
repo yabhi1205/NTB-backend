@@ -3,7 +3,7 @@ const express = require('express')
 const User = require('../modals/User')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken');
-const { body, validationResult } = require('express-validator');
+const { body, validationResult,param } = require('express-validator');
 const symbols = require('../validator/symbols')
 const removepassword = require('../validator/removepassword')
 const JWT_SECRET = process.env.JWT_SECRET
@@ -18,8 +18,8 @@ router.post('/create',
             }
             return true
         }),
-        body('email', 'Please enter the valid email').exists().custom(value=>{
-            if(!symbols.miet(value)){
+        body('email', 'Please enter the valid email').exists().custom(value => {
+            if (!symbols.miet(value)) {
                 return Promise.reject('Please enter the E-Mail of miet domain')
             }
             return true
@@ -30,12 +30,12 @@ router.post('/create',
         let user = User(req.body)
         try {
             if (!validationResult(req).isEmpty()) {
-                return res.status(400).json({success:false, errors: validationResult(req).array() });
+                return res.status(400).json({ success: false, errors: validationResult(req).array() });
             }
 
             let user_mail = await User.findOne({ email: req.body.email.toLowerCase() }).select('email')
             if (user_mail) {
-                return res.status(400).send({success : false,error:"Already have a user"})
+                return res.status(400).send({ success: false, error: "Already have a user" })
 
             }
             const salt = await bcrypt.genSalt(10);
@@ -51,11 +51,11 @@ router.post('/create',
                 }
             }
             const authtoken = jwt.sign(data, JWT_SECRET);
-            res.send({success:true,user:removepassword(user), authtoken })
+            res.send({ success: true, user: removepassword(user), authtoken })
 
 
         } catch (error) {
-            res.status(404).send({success:false,error:"internal error"})
+            res.status(404).send({ success: false, error: "internal error" })
         }
     })
 
@@ -64,8 +64,8 @@ router.post('/create',
 
 router.post('/login',
     [
-        body('email', 'Please enter the valid email').exists().custom(value=>{
-            if(!symbols.miet(value)){
+        body('email', 'Please enter the valid email').exists().custom(value => {
+            if (!symbols.miet(value)) {
                 return Promise.reject('Please enter the E-Mail of miet domain')
             }
             return true
@@ -75,13 +75,13 @@ router.post('/login',
     async (req, res) => {
         const { email, password } = req.body
         try {
-            let user = await User.findOne({ email:email.toLowerCase() }).select(['name','email','password'])
+            let user = await User.findOne({ email: email.toLowerCase() }).select(['name', 'email', 'password'])
             if (!user) {
-                return res.status(401).json({success: false, error: "Please try to login with correct credentials" });
+                return res.status(401).json({ success: false, error: "Please try to login with correct credentials" });
             }
             const passwordCompare = await bcrypt.compare(password, user.password);
             if (!passwordCompare) {
-                return res.status(401).json({ success : false, error: "Please try to login with correct credentials" });
+                return res.status(401).json({ success: false, error: "Please try to login with correct credentials" });
             }
             const data = {
                 user: {
@@ -89,9 +89,9 @@ router.post('/login',
                 }
             }
             const authtoken = jwt.sign(data, JWT_SECRET);
-            res.json({ success:true,user:removepassword(user), authtoken })
+            res.json({ success: true, user: removepassword(user), authtoken })
         } catch (error) {
-            res.status(500).send({success:false,error:"Internal Server Error"});
+            res.status(500).send({ success: false, error: "Internal Server Error" });
         }
     })
 
@@ -99,15 +99,43 @@ router.post('/login',
 router.post('/fetch', fetchuser, async (req, res) => {
     try {
         userId = req.user.id;
-        const user = await User.findById(userId).select(['name','email'])
-        if(!user){
-            return res.status(401).send({success:false,error:'Please enter the valid token'})
+        const user = await User.findById(userId).select(['name', 'email'])
+        if (!user) {
+            return res.status(401).send({ success: false, error: 'Please enter the valid token' })
         }
-        else{
-            res.send({success:true,user:user})
+        else {
+            res.send({ success: true, user: user })
         }
     } catch (error) {
-        res.status(500).send({success:false,error:"Internal Server Error"});
+        res.status(500).send({ success: false, error: "Internal Server Error" });
     }
 })
+
+router.get('/check/:email',
+    [
+        param('email', 'Please enter the valid email').exists().custom(value => {
+            if (!symbols.miet(value)) {
+                return Promise.reject('Please enter the E-Mail of miet domain')
+            }
+            return true
+        })
+    ],
+    async (req, res) => {
+        if (!validationResult(req).isEmpty()) {
+            return res.status(400).json({ success: false, errors: validationResult(req).array() })
+        }
+        try {
+            let newuser = await User.findOne({ email: req.params.email.toLowerCase() }).select('email')
+            if (!newuser) {
+                return res.status(200).send({ success: true, error: "User don't Exists" })
+            }
+            else {
+                res.status(409).send({ success: false, error: 'User Exists' })
+            }
+
+        } catch (error) {
+            res.status(500).send({ success: false, error: "Internal Server Error" });
+        }
+    })
+
 module.exports = router

@@ -49,8 +49,6 @@ router.post('/fetch', fetchadmin, async (req, res) => {
         if (!req.admin) {
             return res.status(401).send({ success: false, error: 'Please enter the valid token1' })
         }
-        console.log(req.admin)
-        console.log(req.admin.id)
         const admin = await Admin.findById(req.admin.id).select(['name','email'])
         if (!admin) {
             return res.status(401).send({ success: false,admin, error: 'Please enter the valid token2' })
