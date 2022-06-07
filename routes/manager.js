@@ -1,5 +1,7 @@
 require('dotenv/config')
 const express = require('express')
+const dateTime = require('node-datetime');
+const moment = require('moment')
 const Manager = require('../modals/Manager')
 const Admin = require('../modals/Admin')
 const bcrypt = require('bcrypt')
@@ -49,18 +51,20 @@ router.post('/create', fetchadmin,
                     email: req.body.email.toLowerCase(),
                     password: hashpass,
                 })
+                var dt = dateTime.create();
+                var formatted = dt.format('Y-m-d H:M:S');
                 const data = {
                     manager: {
-                        id: manager.id
+                        id: manager.id,
+                        time: formatted
                     }
                 }
                 const authtoken = jwt.sign(data, JWT_SECRET);
-                res.send({ success: true, user: removepassword(manager), authtoken })
+                return res.send({ success: true, user: removepassword(manager), authtoken })
 
             }
         } catch (error) {
-            res.status(404).send({ success: false, error: "Internal Server Error" })
-            console.error(error)
+            return res.status(404).send({ success: false, error: "Internal Server Error" })
         }
     })
 
@@ -86,17 +90,19 @@ router.post('/login',
             if (!passwordCompare) {
                 return res.status(401).json({ success: false, error: "Please try to login with correct credentials" });
             }
+            var dt = dateTime.create();
+            var formatted = dt.format('Y-m-d H:M:S');
             const data = {
                 manager: {
-                    id: manager.id
+                    id: manager.id,
+                    time:formatted
                 }
             }
             const authtoken = jwt.sign(data, JWT_SECRET);
-            res.json({ success: true, user: removepassword(manager), authtoken })
+            return res.json({ success: true, user: removepassword(manager), authtoken })
 
         } catch (error) {
-            console.error(error.message);
-            res.status(500).send({ success: false, error: "Internal Server Error" });
+            return res.status(500).send({ success: false, error: "Internal Server Error" });
         }
     })
 
@@ -108,15 +114,25 @@ router.post('/fetch', fetchmanager, async (req, res) => {
         }
         let managerId = req.manager.id;
         const manager = await Manager.findById(managerId).select(['name','email'])
-        if (!manager) {
-            return res.status(401).send({ success: false, error: 'Please enter the valid token' })
+        if (manager) {
+            var dt = dateTime.create();
+            var formatted = dt.format('Y-m-d H:M:S');
+            var startDate = moment(req.manager.time, 'YYYY-M-DD HH:mm:ss')
+            var endDate = moment(formatted, 'YYYY-M-DD HH:mm:ss')
+            var secondsDiff = endDate.diff(startDate, 'seconds')
+            // if(secondsDiff<1,72,800){
+            if (secondsDiff < 800) {
+                return res.status(200).send({ success: true, user: manager })
+            }
+            else {
+                return res.status(408).send({ success: false, error: 'Session timeout' })
+            }
         }
         else {
-            res.send({ success: true, user: manager })
+            return res.status(401).send({ success: false, error: 'Please enter the valid token2' })
         }
     } catch (error) {
-        res.status(500).send({ success: false, error: "Internal Server Error" });
-        console.error(error)
+        return res.status(500).send({ success: false, error: "Internal Server Error" });
     }
 })
 module.exports = router

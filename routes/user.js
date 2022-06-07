@@ -1,5 +1,7 @@
 require('dotenv/config')
 const express = require('express')
+const dateTime = require('node-datetime');
+const moment = require('moment')
 const User = require('../modals/User')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken');
@@ -45,17 +47,20 @@ router.post('/create',
                 email: req.body.email.toLowerCase(),
                 password: hashpass,
             })
+            var dt = dateTime.create();
+            var formatted = dt.format('Y-m-d H:M:S');
             const data = {
                 user: {
-                    id: user.id
+                    id: user.id,
+                    time:formatted
                 }
             }
             const authtoken = jwt.sign(data, JWT_SECRET);
-            res.send({ success: true, user: removepassword(user), authtoken })
+            return res.send({ success: true, user: removepassword(user), authtoken })
 
 
         } catch (error) {
-            res.status(404).send({ success: false, error: "internal error" })
+            return res.status(404).send({ success: false, error: "internal error" })
         }
     })
 
@@ -83,15 +88,18 @@ router.post('/login',
             if (!passwordCompare) {
                 return res.status(401).json({ success: false, error: "Please try to login with correct credentials" });
             }
+            var dt = dateTime.create();
+            var formatted = dt.format('Y-m-d H:M:S');
             const data = {
                 user: {
-                    id: user.id
+                    id: user.id,
+                    time:formatted
                 }
             }
             const authtoken = jwt.sign(data, JWT_SECRET);
-            res.json({ success: true, user: removepassword(user), authtoken })
+            return res.json({ success: true, user: removepassword(user), authtoken })
         } catch (error) {
-            res.status(500).send({ success: false, error: "Internal Server Error" });
+            return res.status(500).send({ success: false, error: "Internal Server Error" });
         }
     })
 
@@ -100,14 +108,25 @@ router.post('/fetch', fetchuser, async (req, res) => {
     try {
         userId = req.user.id;
         const user = await User.findById(userId).select(['name', 'email'])
-        if (!user) {
-            return res.status(401).send({ success: false, error: 'Please enter the valid token' })
+        if (user) {
+            var dt = dateTime.create();
+            var formatted = dt.format('Y-m-d H:M:S');
+            var startDate = moment(req.user.time, 'YYYY-M-DD HH:mm:ss')
+            var endDate = moment(formatted, 'YYYY-M-DD HH:mm:ss')
+            var secondsDiff = endDate.diff(startDate, 'seconds')
+            // if(secondsDiff<1,72,800){
+            if (secondsDiff < 800) {
+                return res.status(200).send({ success: true, user: user })
+            }
+            else {
+                return res.status(408).send({ success: false, error: 'Session timeout' })
+            }
         }
         else {
-            res.send({ success: true, user: user })
+            return res.status(401).send({ success: false, error: 'Please enter the valid token2' })
         }
     } catch (error) {
-        res.status(500).send({ success: false, error: "Internal Server Error" });
+        return res.status(500).send({ success: false, error: "Internal Server Error" });
     }
 })
 
@@ -130,11 +149,11 @@ router.get('/check/:email',
                 return res.status(200).send({ success: true, error: "User don't Exists" })
             }
             else {
-                res.status(409).send({ success: false, error: 'User Exists' })
+                return res.status(409).send({ success: false, error: 'User Exists' })
             }
 
         } catch (error) {
-            res.status(500).send({ success: false, error: "Internal Server Error" });
+            return res.status(500).send({ success: false, error: "Internal Server Error" });
         }
     })
 

@@ -41,7 +41,7 @@ router.get('/all', fetchuser, fetchmanager, fetchadmin, async (req, res) => {
         return res.status(401).send({ success: false, error: 'Please enter the valid token' })
     }
     else {
-        res.send({ success: true, allBook })
+        return res.send({ success: true, allBook })
     }
 })
 
@@ -86,11 +86,11 @@ router.get('/author=:author', fetchadmin, fetchmanager, fetchuser,
                 return res.status(401).send({ success: false, error: 'No book found' })
             }
             else {
-                res.send({ success: true, subjectBook })
+                return res.send({ success: true, subjectBook })
             }
 
         } catch (error) {
-            res.status(500).send({ success: false, error: 'Internal server error' })
+            return res.status(500).send({ success: false, error: 'Internal server error' })
         }
     })
 
@@ -134,11 +134,11 @@ router.get('/?name=:name', fetchadmin, fetchmanager, fetchuser,
                 return res.status(401).send({ success: false, error: 'No book found' })
             }
             else {
-                res.send({ success: true, subjectBook })
+                return res.send({ success: true, subjectBook })
             }
 
         } catch (error) {
-            res.status(500).send({ success: false, error: 'Internal server error' })
+            return res.status(500).send({ success: false, error: 'Internal server error' })
         }
     })
 
@@ -180,11 +180,11 @@ router.get('/:branch', fetchadmin, fetchmanager, fetchuser,
                 return res.status(401).send({ success: false, error: 'No book found' })
             }
             else {
-                res.send({ success: true, branchBook })
+                return res.send({ success: true, branchBook })
             }
 
         } catch (error) {
-            res.status(500).send({ success: false, error: 'Internal server error' })
+            return res.status(500).send({ success: false, error: 'Internal server error' })
         }
     })
 
@@ -233,11 +233,11 @@ router.get('/:branch/:subject', fetchadmin, fetchmanager, fetchuser,
                 return res.status(401).send({ success: false, error: 'No book found' })
             }
             else {
-                res.send({ success: true, subjectBook })
+                return res.send({ success: true, subjectBook })
             }
 
         } catch (error) {
-            res.status(500).send({ success: false, error: 'Internal server error' })
+            return res.status(500).send({ success: false, error: 'Internal server error' })
         }
     })
 

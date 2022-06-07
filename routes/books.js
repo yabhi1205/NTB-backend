@@ -76,10 +76,10 @@ router.post('/add', fetchadmin, fetchmanager,
                 return res.status(401).send({ success: false, error: 'Book not created' })
             }
             else {
-                res.send({ success: true, book })
+                return res.send({ success: true, book })
             }
         } catch (error) {
-            res.status(404).send({ success: false, error: "internal error" })
+            return res.status(404).send({ success: false, error: "internal error" })
         }
     })
 
@@ -145,11 +145,10 @@ router.post('/edited/:id', fetchadmin, fetchmanager,
                 return res.status(401).send({ success: false, error: 'Book not updated' })
             }
             else {
-                res.send({ success: true, data })
+                return res.send({ success: true, data })
             }
         } catch (error) {
-            console.error({ error })
-            res.status(500).send({ success: false, error: 'Internal server error' })
+            return res.status(500).send({ success: false, error: 'Internal server error' })
         }
     })
 
@@ -184,11 +183,10 @@ router.delete('/delete/:id', fetchadmin, fetchmanager, async (req, res) => {
             return res.status(400).send({ success: false, error: 'Book Deletion Unsuccessfully' })
         }
         else {
-            res.send({ success: true, book })
+            return res.send({ success: true, book })
         }
     } catch (error) {
-        console.error({ error })
-        res.status(500).send({ success: false, error: 'Internal server error' })
+        return res.status(500).send({ success: false, error: 'Internal server error' })
     }
 })
 module.exports = router
