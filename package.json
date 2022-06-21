@@ -20,6 +20,7 @@
     "moment": "^2.29.3",
     "mongoose": "^6.3.4",
     "node-datetime": "^2.1.2",
+    "nodemailer": "^6.7.5",
     "react-router-dom": "^6.2.1"
   }
 }

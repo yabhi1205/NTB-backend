@@ -129,7 +129,6 @@ router.get('/?name=:name', fetchadmin, fetchmanager, fetchuser,
             return res.status(401).send({ success: false, error: 'please signup' })
         }
         try {
-            let subjectBook = await Books.find({ name: req.params.name.toUpperCase()})
             if (!subjectBook) {
                 return res.status(401).send({ success: false, error: 'No book found' })
             }
