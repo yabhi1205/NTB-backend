@@ -5,7 +5,7 @@ const sendotp = async (Email, Otp) => {
     const nodemailer = require("nodemailer");
     return new Promise(function (resolve, reject) {
         let transporter = nodemailer.createTransport({
-            service: "outlook",
+            service: "gmail",
             auth: {
                 user:userkanaam,
                 pass:sabkapass
