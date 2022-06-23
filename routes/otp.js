@@ -3,9 +3,10 @@ const express = require('express')
 const dateTime = require('node-datetime');
 const moment = require('moment')
 const Otp = require('../modals/Otp')
+const User = require('../modals/User')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken');
-const { body, validationResult, } = require('express-validator');
+const { validationResult, } = require('express-validator');
 const sendotp = require('../validator/sendotp')
 const removepassword = require('../validator/removepassword')
 const JWT_SECRET = process.env.JWT_SECRET
@@ -27,10 +28,10 @@ router.post('/', async (req, res) => {
         console.log(random_otp)
         sendotp(req.body.email.toLowerCase(), random_otp).then(async () => {
             let hashpass = await bcrypt.hash(random_otp.toString(), salt);
-            // otp = await Otp.create({
-            //     email: req.body.email.toLowerCase(),
-            //     password: hashpass,
-            // })
+            otp = await Otp.create({
+                email: req.body.email.toLowerCase(),
+                password: hashpass,
+            })
             var dt = dateTime.create();
             var formatted = dt.format('Y-m-d H:M:S');
             const data = {
@@ -52,7 +53,7 @@ router.post('/', async (req, res) => {
     }
 })
 
-router.post('/reset', fetchuser, async (req, res) => {
+router.post('/resend', fetchuser, async (req, res) => {
     try {
         if (!validationResult(req).isEmpty()) {
             return res.status(400).json({ success: false, errors: validationResult(req).array() });
@@ -74,7 +75,7 @@ router.post('/reset', fetchuser, async (req, res) => {
                 console.log(random_otp)
                 sendotp(user_otp.email.toLowerCase(), random_otp).then(async () => {
                     let hashpass = await bcrypt.hash(random_otp.toString(), salt);
-                    let otp = await Otp.findByIdAndUpdate(userId,{password:hashpass},{new:true})
+                    let otp = await Otp.findByIdAndUpdate(userId, { password: hashpass }, { new: true })
                     const data = {
                         user: {
                             id: otp.id,
@@ -97,41 +98,44 @@ router.post('/reset', fetchuser, async (req, res) => {
         return res.status(404).send({ success: false, error: "internal error" })
     }
 })
-
-router.post('/fetch', fetchuser, async (req, res) => {
+router.post('/reset', async (req, res) => {
     try {
-        userId = req.user.id;
-        const user = await Otp.findById(userId)
-        if (user) {
-            var dt = dateTime.create();
-            var formatted = dt.format('Y-m-d H:M:S');
-            var startDate = moment(req.user.time, 'YYYY-M-DD HH:mm:ss')
-            var endDate = moment(formatted, 'YYYY-M-DD HH:mm:ss')
-            var secondsDiff = endDate.diff(startDate, 'seconds')
-
-            // Waiting time has to change accordingly
-
-            if (secondsDiff < 800) {
-                const passwordCompare = await bcrypt.compare(req.body.password, user.password);
-                if (!passwordCompare) {
-                    return res.status(401).json({ success: false, error: "Please try to login with correct credentials" });
-                }
-                else {
-                    await Otp.findByIdAndDelete(userId)
-                    return res.status(200).send({ success: true, user: removepassword(user) })
-                }
+        let confirm_user = await User.findOne({ email: req.body.email.toLowerCase() }).select('email')
+        if (confirm_user) {
+            let user_otp = await Otp.findOne({ email: req.body.email.toLowerCase() }).select('email')
+            if (user_otp) {
+                return res.status(400).send({ success: false, error: "Already Sent" })
             }
-            else {
-                return res.status(408).send({ success: false, error: 'Session timeout' })
-            }
+            const salt = await bcrypt.genSalt(10);
+            let random_otp = Math.floor(100000 + Math.random() * 900000)
+            console.log(random_otp)
+            sendotp(req.body.email.toLowerCase(), random_otp).then(async () => {
+                let hashpass = await bcrypt.hash(random_otp.toString(), salt);
+                otp = await Otp.create({
+                    email: req.body.email.toLowerCase(),
+                    password: hashpass,
+                })
+                var dt = dateTime.create();
+                var formatted = dt.format('Y-m-d H:M:S');
+                const data = {
+                    user: {
+                        id: otp.id,
+                        time: formatted
+                    }
+                }
+                const authtoken = jwt.sign(data, JWT_SECRET);
+                return res.send({ success: true, user: removepassword(otp), authtoken })
+            }).catch((err) => {
+                console.log(err)
+                return res.status(503).send({ success: false, error: "Service Unavialable" })
+            })
         }
         else {
-            return res.status(401).send({ success: false, error: 'Please enter the valid token2' })
+            return res.status(401).send({ success: false, error: "No user Found" })
         }
     } catch (error) {
         console.log(error)
-        return res.status(500).send({ success: false, error: "Internal Server Error" });
+        return res.status(404).send({ success: false, error: "internal error" })
     }
 })
-
 module.exports = router

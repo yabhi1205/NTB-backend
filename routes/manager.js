@@ -68,7 +68,6 @@ router.post('/create', fetchadmin,
         }
     })
 
-
 // login
 
 router.post('/login',
@@ -82,7 +81,7 @@ router.post('/login',
             if (!validationResult(req).isEmpty()) {
                 return res.status(400).json({ success: false, errors: validationResult(req).array() });
             }
-            let manager = await Manager.findOne({ email:email.toLowerCase() }).select(['name','email','password'])
+            let manager = await Manager.findOne({ email: email.toLowerCase() }).select(['name', 'email', 'password'])
             if (!manager) {
                 return res.status(401).json({ success: false, error: "Please try to login with correct credentials" });
             }
@@ -95,7 +94,7 @@ router.post('/login',
             const data = {
                 manager: {
                     id: manager.id,
-                    time:formatted
+                    time: formatted
                 }
             }
             const authtoken = jwt.sign(data, JWT_SECRET);
@@ -113,7 +112,7 @@ router.post('/fetch', fetchmanager, async (req, res) => {
             return res.status(401).send({ success: false, error: 'Please enter the valid token' })
         }
         let managerId = req.manager.id;
-        const manager = await Manager.findById(managerId).select(['name','email'])
+        const manager = await Manager.findById(managerId).select(['name', 'email'])
         if (manager) {
             var dt = dateTime.create();
             var formatted = dt.format('Y-m-d H:M:S');
@@ -133,6 +132,67 @@ router.post('/fetch', fetchmanager, async (req, res) => {
         }
     } catch (error) {
         return res.status(500).send({ success: false, error: "Internal Server Error" });
+    }
+})
+
+router.post('/edited', fetchadmin, async (req, res) => {
+    let manager = Manager(req.body)
+    try {
+        if (!req.admin) {
+            return res.status(401).send({ success: false, error: 'Please Authenticate' })
+        }
+        else {
+            let verifyadmin = await Admin.findById(req.admin.id).select('email')
+            if (!verifyadmin) {
+                return res.status(401).send({ success: false, error: 'Please Authenticate' })
+            }
+            let manager_mail = await Manager.findOne({ email: req.body.email.toLowerCase() }).select(['email','id'])
+            if (!manager_mail) {
+                return res.status(401).send({ success: false, error: "Manager doesn't exists" })
+
+            }
+            manager = await Manager.findByIdAndUpdate(manager_mail.id,{name:req.body.name.toUpperCase()},{new:true})
+            var dt = dateTime.create();
+            var formatted = dt.format('Y-m-d H:M:S');
+            const data = {
+                manager: {
+                    id: manager.id,
+                    time: formatted
+                }
+            }
+            const authtoken = jwt.sign(data, JWT_SECRET);
+            return res.send({ success: true, user: removepassword(manager), authtoken })
+
+        }
+    } catch (error) {
+        console.log(error)
+        return res.status(404).send({ success: false, error: "Internal Server Error" })
+    }
+})
+
+router.delete('/delete',fetchadmin,async(req,res)=>{
+    let manager = Manager(req.body)
+    try {
+        if (!req.admin) {
+            return res.status(401).send({ success: false, error: 'Please Authenticate' })
+        }
+        else {
+            let verifyadmin = await Admin.findById(req.admin.id).select('email')
+            if (!verifyadmin) {
+                return res.status(401).send({ success: false, error: 'Please Authenticate' })
+            }
+            let manager_mail = await Manager.findOne({ email: req.body.email.toLowerCase() })
+            if (!manager_mail) {
+                return res.status(401).send({ success: false, error: "Manager doesn't exists" })
+
+            }
+            manager = await Manager.findByIdAndDelete(manager_mail.id,{new:true})
+            return res.send({ success: true, user: removepassword(manager), })
+
+        }
+    } catch (error) {
+        console.log(error)
+        return res.status(404).send({ success: false, error: "Internal Server Error" })
     }
 })
 module.exports = router
