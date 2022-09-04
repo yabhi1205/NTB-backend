@@ -79,6 +79,7 @@ router.post('/add', fetchadmin, fetchmanager,
                 return res.send({ success: true, book })
             }
         } catch (error) {
+            console.log(error);
             return res.status(404).send({ success: false, error: "internal error" })
         }
     })

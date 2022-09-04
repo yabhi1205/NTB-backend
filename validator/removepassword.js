@@ -7,6 +7,9 @@ const removepassword = (json)=>{
     if(data.__v){
         delete data.__v
     }
+    if(data.block){
+        delete data.block
+    }
     return data
 }
 module.exports = removepassword

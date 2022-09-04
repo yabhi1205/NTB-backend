@@ -11,7 +11,7 @@ const BooksSchema = new Schema({
         required: true
     },
     bookId:{
-        type : String,
+        type : Number,
         unique: true,
         required : true
     },
