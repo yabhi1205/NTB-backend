@@ -1,5 +1,4 @@
 require('dotenv/config')
-const express = require('express')
 const User = require('../modals/User')
 const Otp = require('../modals/Otp')
 const UserLog = require('../modals/UserLoggedIn')
@@ -10,9 +9,10 @@ const symbols = require('../validator/symbols')
 const removepassword = require('../validator/removepassword')
 const { updateArray, TimeDiff, Formatted } = require('../validator/extended')
 const JWT_SECRET = process.env.JWT_SECRET
-const router = express.Router()
+const router = require('express').Router()
 const fetchuser = require('../middlewares/verifyuser');
 const UserLoggedIn = require('../modals/UserLoggedIn');
+const UserInfo = require('../modals/UserInfo')
 const verifyotp = async (req, res, next) => {
     const token = req.header('auth-token')
     if (!token) {
@@ -50,22 +50,21 @@ router.post('/create', verifyotp,
             if (!validationResult(req).isEmpty()) {
                 return res.status(400).json({ success: false, errors: validationResult(req).array() });
             }
-            let user = User(req.body)
             const passwordCompare = await bcrypt.compare(req.body.onetimepassword.toString(), req.otp.password);
             if (!passwordCompare) {
                 return res.status(401).json({ success: false, error: "Please try to login with correct credentials" });
             }
             else {
-                let user_mail = await User.findOne({ email: user.email.toLowerCase() }).select('email')
+                let user_mail = await User.findOne({ email: req.body.email.toLowerCase() }).select('email')
                 if (user_mail) {
                     return res.status(400).send({ success: false, error: "Already have a user" })
 
                 }
                 const salt = await bcrypt.genSalt(10);
-                let hashpass = await bcrypt.hash(user.password, salt);
-                user = await User.create({
-                    name: user.name.toUpperCase(),
-                    email: user.email.toLowerCase(),
+                let hashpass = await bcrypt.hash(req.body.password, salt);
+                let user = await User.create({
+                    name: req.body.name.toUpperCase(),
+                    email: req.body.email.toLowerCase(),
                     password: hashpass,
                 })
                 const data = {
@@ -81,31 +80,72 @@ router.post('/create', verifyotp,
                     login_array: { time0: Formatted() },
                     auth_token: authtoken,
                 })
-                // await Otp.findByIdAndDelete(req.otp.id)
-                return res.send({ success: true, user: removepassword(user), authtoken })
+                await Otp.findByIdAndDelete(req.otp.id)
+                return res.status(200).send({ success: true, user: removepassword(user), authtoken })
             }
         }
         catch (error) {
-            console.log(error)
             return res.status(404).send({ success: false, error: "internal error" })
         }
     })
 
+router.post('/userinfo', fetchuser, async (req, res) => {
+    try {
+        if (!validationResult(req).isEmpty()) {
+            return res.status(400).json({ success: false, errors: validationResult(req).array() });
+        }
+        let checkuser = await UserInfo.findOne({userid:req.user.id})
+        if(checkuser){
+            return res.status(400).send({success:false,error:"User info already exists"})
+        }
+        let userinfo = {userid:req.user.id}
+        if(req.body.alt_email){userinfo.alt_email = req.body.alt_email}
+        if(req.body.gender){userinfo.gender = req.body.gender}
+        if(req.body.age){userinfo.age = req.body.age}
+        if(req.body.dob){userinfo.dob = req.body.dob}
+        if(req.body.occupation){userinfo.occupation = req.body.occupation}
+        if(req.body.phoneNo){userinfo.phoneNo = req.body.phoneNo}
+        if(req.body.address.pincode){userinfo.address.pincode = req.body.address.pincode}
+        if(req.body.address.city){userinfo.address.city = req.body.address.city}
+        if(req.body.address.state){userinfo.address.state = req.body.address.state}
+        if(req.body.address.country){userinfo.address.country = req.body.address.country}
+        let user = await UserInfo.create(userinfo)
+        if(!user){
+            return res.status(400).send({success:false,error:"Please try after sometime"})
+        }
+        else{
+            return res.status(200).send({success:true,userinfo})
+        }
+    } catch (error) {
+        return res.status(500).send({ success: false, error: "Internal Server Error" });
+    }
+})
+
+router.get('/fetch/userinfo',fetchuser,async(req,res)=>{
+    try {
+        let user = await UserInfo.findById(req.user.id)
+        if(user){
+            return res.status(200).send({success:true, user: removepassword(user)})
+        }
+        else{
+            return res.status(204).send({success:false,error:"No info about the user"})
+        }
+    } catch (error) {
+        return res.status(500).send({ success: false, error: "Internal Server Error" });
+    }
+})
+
 // login
 router.post('/login',
     [
-        body('email', 'Please enter the valid email').exists().custom(value => {
-            if (!symbols.miet(value)) {
-                return Promise.reject('Please enter the E-Mail of miet domain')
-            }
-            return true
-        }),
+        body('email', 'Please enter the valid email').exists().isEmail(),
         body('password', 'Enter password').exists().isLength({ min: 8 }),
-    ],
-    async (req, res) => {
-        const { email, password } = req.body
+    ], async (req, res) => {
         try {
-            let user = await User.findOne({ email: email.toLowerCase() }).select(['name', 'email', 'password', 'block'])
+            if (!validationResult(req).isEmpty()) {
+                return res.status(400).json({ success: false, errors: validationResult(req).array() });
+            }
+            let user = await User.findOne({ email: req.body.email.toLowerCase() }).select(['name', 'email', 'password', 'block'])
             if (!user) {
                 return res.status(401).json({ success: false, error: "Please try to login with correct credentials" });
             }
@@ -113,20 +153,17 @@ router.post('/login',
                 return res.status(403).send({ success: false, error: "Too many logins (USER BLOCKED)1" })
             }
             let logged = await UserLoggedIn.findOne({ userid: user.id })
-            // console.log(user.id);
-            // console.log(logged);
-            if (logged && TimeDiff(logged.login_array.time0) < 450) {
-                let blocked = await User.findByIdAndUpdate(user.id, {
+            if (logged && logged.login_array.time5 && TimeDiff(logged.login_array.time0) < 450) {
+                await User.findByIdAndUpdate(user.id, {
                     block: {
                         Status: true,
                         NumberOfBlocks: (user.block.NumberOfBlocks < 5 ? user.block.NumberOfBlocks + 1 : user.block.NumberOfBlocks),
                         time: Formatted()
                     }
                 })
-                // console.log(blocked);
                 return res.status(403).send({ success: false, error: "Too many logins (USER BLOCKED)" })
             }
-            const passwordCompare = await bcrypt.compare(password, user.password);
+            const passwordCompare = await bcrypt.compare(req.body.password, user.password);
             if (!passwordCompare) {
                 return res.status(401).json({ success: false, error: "Please try to login with correct credentials" });
             }
@@ -137,7 +174,6 @@ router.post('/login',
                 }
             }
             const authtoken = jwt.sign(data, JWT_SECRET);
-            // console.log(logged.login_array);
             output = await UserLog.findByIdAndUpdate(logged.id, {
                 $set: {
                     data: data,
@@ -145,10 +181,9 @@ router.post('/login',
                     auth_token: authtoken,
                 },
             }, { new: true })
-            // console.log(user);
+            // console.log(authtoken);
             return res.json({ success: true, user: removepassword(user), authtoken })
         } catch (error) {
-            console.log(error)
             return res.status(500).send({ success: false, error: "Internal Server Error" });
         }
     })
@@ -198,43 +233,6 @@ router.post('/edited/password', fetchuser, async (req, res) => {
 
     }
     catch (error) {
-        console.log(error)
-        return res.status(500).send({ success: false, error: "Internal Server Error" });
-    }
-})
-
-router.post('/edited/name', fetchuser, async (req, res) => {
-    try {
-        let user = await User.findById(req.user.id).select(['name', 'email'])
-        if (user) {
-            var dt = dateTime.create();
-            var formatted = dt.format('Y-m-d H:M:S');
-            var startDate = moment(req.user.time, 'YYYY-M-DD HH:mm:ss')
-            var endDate = moment(formatted, 'YYYY-M-DD HH:mm:ss')
-            var secondsDiff = endDate.diff(startDate, 'seconds')
-            // if(secondsDiff<1,72,800){
-            if (secondsDiff < 800) {
-                let newuser = await User.findByIdAndUpdate(req.user.id, { name: req.body.name.toUpperCase() }, { new: true })
-                const data = {
-                    user: {
-                        id: user.id,
-                        time: formatted
-                    }
-                }
-                const authtoken = jwt.sign(data, JWT_SECRET);
-                return res.send({ success: true, user: removepassword(newuser), authtoken })
-            }
-            else {
-                return res.status(408).send({ success: false, error: 'Session timeout' })
-            }
-        }
-        else {
-            return res.status(401).send({ success: false, error: 'Please enter the valid token2' })
-        }
-
-    }
-    catch (error) {
-        console.log(error)
         return res.status(500).send({ success: false, error: "Internal Server Error" });
     }
 })
@@ -260,60 +258,50 @@ router.post('/fetch', fetchuser, async (req, res) => {
     }
 })
 
-router.delete('/delete', fetchuser, async (req, res) => {
-    let user = User(req.body)
+router.post('/reset/password', verifyotp, [
+    body('email', 'Please enter the valid email').exists().isEmail(),
+    body('password', 'Enter password').exists().isLength({ min: 8 }),
+], async (req, res) => {
     try {
-
-    } catch (error) {
-        return res.status(404).send({ success: false, error: "Internal Server Error" })
-    }
-})
-
-router.post('/reset/password', fetchuser, async (req, res) => {
-    try {
-        let user = await User.findOne
-        let finduser = await Otp.findById(req.user.id)       //find the id in otp database
-        if (finduser) {
+        let user = await User.findOne({ email: req.body.email })
+        if (!user) {
             // Waiting time has to change accordingly
-
-            if (TimeDiff(req.user.time) < 450) {
-                const passwordCompare = await bcrypt.compare(req.body.onetimepassword.toString(), finduser.password);
-                if (!passwordCompare) {
-                    return res.status(401).json({ success: false, error: "Please try to login with correct credentials" });
-                }
-                else {
-                    let user_mail = await User.findOne({ email: finduser.email.toLowerCase() })
-                    if (!user_mail) {
-                        return res.status(400).send({ success: false, error: "User doesn't exists" })
-
-                    }
-                    console.log(user_mail)
-                    const salt = await bcrypt.genSalt(10);
-                    let hashpass = await bcrypt.hash(req.body.password, salt);
-                    let user = await User.findByIdAndUpdate(user_mail.id, { password: hashpass }, { new: true })
-                    const data = {
-                        user: {
-                            id: user.id,
-                            time: formatted
-                        }
-                    }
-                    const authtoken = jwt.sign(data, JWT_SECRET);
-                    await Otp.findByIdAndDelete(req.user.id)
-                    return res.send({ success: true, user: removepassword(user), authtoken })
-                }
-            }
-            else {
-                return res.status(408).send({ success: false, error: 'Session timeout' })
-            }
+            return res.status(401).send({ success: false, error: "Email doesn't exists" })
         }
         else {
-            return res.status(401).send({ success: false, error: 'Please enter the valid token2' })
+            if (user.block.status && user.block.NumberOfBlocks == 5) {
+                return res.status(423).send({ success: false, error: "User blocked due to voilations of terms and conditions." })
+            }
+            const passwordCompare = await bcrypt.compare(req.body.onetimepassword.toString(), req.otp.password);
+            if (!passwordCompare) {
+                return res.status(401).json({ success: false, error: "Please try to login with correct credentials" });
+            }
+            else {
+                passwordCompare = await bcrypt.compare(req.body.newpassword.toString(), user.password);
+                if (passwordCompare) {
+                    return res.status(403).json({ success: false, error: "Can't set the previous password" });
+                }
+                const salt = await bcrypt.genSalt(10);
+                let hashpass = await bcrypt.hash(req.body.newpassword, salt);
+                let newuser = await User.findByIdAndUpdate(req.user.id, { password: hashpass })
+                const data = {
+                    user: {
+                        id: user.id,
+                        time: Formatted()
+                    }
+                }
+                const authtoken = jwt.sign(data, JWT_SECRET);
+                output = await UserLog.findByIdAndUpdate(req.logged.id, {
+                    $set: {
+                        data: data,
+                        login_array: updateArray(req.logged.login_array),
+                        auth_token: authtoken,
+                    },
+                }, { new: true })
+                return res.send({ success: true, user: removepassword(newuser), authtoken })
+            }
         }
-
-
-
     } catch (error) {
-        console.log(error)
         return res.status(404).send({ success: false, error: "internal error" })
     }
 })

@@ -11,26 +11,26 @@ const UserInfoSchema = new Schema({
         type: String,
         required: true
     },
-    email: {
+    alt_email: {
         type: String,
-        unique: true,
-        required: true
+        // unique: true,
+        // required: true
     },
     gender: {
         type: String,
-        required: true
+        // required: true
     },
     age: {
         type: Number,
-        required: true
+        // required: true
     },
     dob:{
         type:Date,
-        required:true
+        // required:true
     },
     occupation:{
         type:String,
-        required:true,
+        // required:true,
         default: 'Guest'
     },
     phoneNo:{
